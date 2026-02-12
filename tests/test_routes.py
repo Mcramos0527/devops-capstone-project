@@ -11,13 +11,14 @@ from unittest import TestCase
 from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
-from service.routes import app
+from service import app, talisman
 
 DATABASE_URI = os.getenv(
     "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
 )
 
 BASE_URL = "/accounts"
+HTTPS_ENVIRON = {"wsgi.url_scheme": "https"}
 
 
 ######################################################################
@@ -34,6 +35,7 @@ class TestAccountService(TestCase):
         app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
         app.logger.setLevel(logging.CRITICAL)
         init_db(app)
+        talisman.force_https = False
 
     @classmethod
     def tearDownClass(cls):
@@ -41,18 +43,17 @@ class TestAccountService(TestCase):
 
     def setUp(self):
         """Runs before each test"""
-        db.session.query(Account).delete()  # clean up the last tests
+        db.session.query(Account).delete()
         db.session.commit()
-
         self.client = app.test_client()
 
     def tearDown(self):
         """Runs once after each test case"""
         db.session.remove()
 
-    ######################################################################
+    ##################################################################
     #  H E L P E R   M E T H O D S
-    ######################################################################
+    ##################################################################
 
     def _create_accounts(self, count):
         """Factory method to create accounts in bulk"""
@@ -70,9 +71,9 @@ class TestAccountService(TestCase):
             accounts.append(account)
         return accounts
 
-    ######################################################################
+    ##################################################################
     #  A C C O U N T   T E S T   C A S E S
-    ######################################################################
+    ##################################################################
 
     def test_index(self):
         """It should get 200_OK from the Home Page"""
@@ -82,7 +83,7 @@ class TestAccountService(TestCase):
     def test_health(self):
         """It should be healthy"""
         resp = self.client.get("/health")
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.get_json()
         self.assertEqual(data["status"], "OK")
 
@@ -92,15 +93,13 @@ class TestAccountService(TestCase):
         response = self.client.post(
             BASE_URL,
             json=account.serialize(),
-            content_type="application/json"
+            content_type="application/json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        # Make sure location header is set
-        location = response.headers.get("Location", None)
+        location = response.headers.get("Location")
         self.assertIsNotNone(location)
 
-        # Check the data is correct
         new_account = response.get_json()
         self.assertEqual(new_account["name"], account.name)
         self.assertEqual(new_account["email"], account.email)
@@ -119,8 +118,25 @@ class TestAccountService(TestCase):
         response = self.client.post(
             BASE_URL,
             json=account.serialize(),
-            content_type="test/html"
+            content_type="text/html",
         )
-        self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+        self.assertEqual(
+            response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+        )
 
-    # ADD YOUR TEST CASES HERE ...
+    def test_security_headers(self):
+        """It should have security headers"""
+        response = self.client.get("/", environ_overrides=HTTPS_ENVIRON)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(
+            response.headers.get("X-Content-Type-Options"), "nosniff"
+        )
+        self.assertEqual(
+            response.headers.get("Content-Security-Policy"),
+            "default-src 'self'; object-src 'none'",
+        )
+        self.assertEqual(
+            response.headers.get("Referrer-Policy"),
+            "strict-origin-when-cross-origin",
+        )
