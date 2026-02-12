@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: lint-test
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  workspaces:
+    - name: source
+  steps:
+    - name: clone
+      image: alpine/git
+      script: |
+        git clone $(params.repo-url) --branch $(params.revision) $(workspaces.source.path)
+    - name: lint
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        apt-get update && apt-get install -y make
+        pip install -r requirements.txt
+        make lint
+    - name: test
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        pip install -r requirements.txt
+        export DATABASE_URI=sqlite:///:memory:
+        nosetests
