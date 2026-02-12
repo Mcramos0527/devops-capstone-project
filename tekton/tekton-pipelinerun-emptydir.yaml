@@ -1,0 +1,15 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: cd-pipeline-run-
+spec:
+  pipelineRef:
+    name: cd-pipeline
+  params:
+    - name: repo-url
+      value: https://github.com/Mcramos0527/devops-capstone-project.git
+    - name: revision
+      value: main
+  workspaces:
+    - name: shared-workspace
+      emptyDir: {}
