@@ -1,5 +1,7 @@
 # devops-capstone-project
 
+![Build Status](https://github.com/Mcramos0527/devops-capstone-project/actions/workflows/ci-build.yaml/badge.svg)
+
 This repository contains the Agile planning artifacts for the DevOps Capstone Project.
 It includes the project setup, user stories, product backlog, and sprint planning.
 
