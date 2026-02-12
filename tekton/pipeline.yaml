@@ -2,6 +2,7 @@
 # This pipeline needs the following tasks from Tekton Catalog
 #   - git-clone
 #   - flake8
+#   - nose
 #
 ---
 apiVersion: tekton.dev/v1beta1
@@ -54,5 +55,19 @@ spec:
             - "--max-complexity=10"
             - "--max-line-length=127"
             - "--statistics"
+      runAfter:
+        - clone
+
+    - name: tests
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: args
+          value: "-v --with-spec --spec-color"
+        - name: database_uri
+          value: "sqlite:///test.db"
       runAfter:
         - clone
